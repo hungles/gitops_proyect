@@ -1,0 +1,41 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: gitops-microservices
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          # Entorno de Desarrollo: conectado a la rama 'dev' y al overlay de dev
+          - env: dev
+            branch: dev
+            server: 'https://kubernetes.default.svc'
+
+          # Entorno de Producción: conectado a la rama 'main' y al overlay de prod
+          - env: prod
+            branch: main
+            server: 'https://kubernetes.default.svc'
+
+  template:
+    metadata:
+      name: 'gitops-stack-{{env}}'
+      namespace: argocd
+      labels:
+        environment: '{{env}}'
+    spec:
+      project: default
+      source:
+        repoURL: 'https://github.com/tu-usuario/gitops_proyect.git' # ACTUALIZAR CON TU REPOSITORIO
+        targetRevision: '{{branch}}'
+        path: 'k8s/environments/{{env}}'
+      destination:
+        server: '{{server}}'
+        namespace: '{{env}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+
