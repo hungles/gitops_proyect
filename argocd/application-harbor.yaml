@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gitops-harbor
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    # Fuente 1: Helm Chart oficial de Harbor
+    - repoURL: 'https://helm.goharbor.io'
+      chart: harbor
+      targetRevision: 1.14.0
+      helm:
+        valueFiles:
+          - $values/k8s/harbor/values.yaml
+    # Fuente 2: Repositorio Git con nuestro values.yaml personalizado
+    - repoURL: 'https://github.com/tu-usuario/gitops_proyect.git' # ACTUALIZAR CON TU REPO
+      targetRevision: dev
+      ref: values
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: harbor
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+

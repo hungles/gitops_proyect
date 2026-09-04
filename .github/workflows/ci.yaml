@@ -1,0 +1,70 @@
+name: CI/CD Pipeline (Harbor)
+
+on:
+  push:
+    branches: [ "main", "dev" ]
+  pull_request:
+    branches: [ "main", "dev" ]
+
+env:
+  REGISTRY: ${{ secrets.HARBOR_URL || 'harbor.local:30002' }}
+  PROJECT: ${{ secrets.HARBOR_PROJECT || 'gitops' }}
+
+jobs:
+  build-and-push-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Log in to Harbor Registry
+        uses: docker/login-action@v2
+        if: ${{ secrets.HARBOR_USERNAME != '' }}
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.HARBOR_USERNAME }}
+          password: ${{ secrets.HARBOR_PASSWORD }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.PROJECT }}/frontend
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./apps/frontend
+          # Si se configuraron secretos de Harbor y no es un PR, hace push al registro
+          push: ${{ github.event_name != 'pull_request' && secrets.HARBOR_USERNAME != '' }}
+          tags: ${{ steps.meta.outputs.tags }},${{ env.REGISTRY }}/${{ env.PROJECT }}/frontend:latest
+          labels: ${{ steps.meta.outputs.labels }}
+
+  build-and-push-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Log in to Harbor Registry
+        uses: docker/login-action@v2
+        if: ${{ secrets.HARBOR_USERNAME != '' }}
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.HARBOR_USERNAME }}
+          password: ${{ secrets.HARBOR_PASSWORD }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.PROJECT }}/backend
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./apps/backend
+          # Si se configuraron secretos de Harbor y no es un PR, hace push al registro
+          push: ${{ github.event_name != 'pull_request' && secrets.HARBOR_USERNAME != '' }}
+          tags: ${{ steps.meta.outputs.tags }},${{ env.REGISTRY }}/${{ env.PROJECT }}/backend:latest
+          labels: ${{ steps.meta.outputs.labels }}

@@ -1,0 +1,55 @@
+# ==============================================================================
+# Valores personalizados para el Helm Chart oficial de Harbor (helm.goharbor.io)
+# ==============================================================================
+
+# URL externa con la que Docker y Kubernetes accederán a Harbor
+# Si estás usando minikube/kind, puedes configurar /etc/hosts con: 127.0.0.1 harbor.local
+externalURL: http://harbor.local:30002
+
+# Configuración de exposición del servicio
+expose:
+  type: nodePort
+  tls:
+    enabled: false
+  nodePort:
+    name: harbor
+    ports:
+      http:
+        port: 80
+        nodePort: 30002
+      https:
+        port: 443
+        nodePort: 30003
+
+# Contraseña inicial del usuario 'admin'
+harborAdminPassword: "HarborAdmin123!"
+
+# Persistencia de datos en volúmenes (PVCs estándar)
+persistence:
+  enabled: true
+  resourcePolicy: "keep"
+  persistentVolumeClaim:
+    registry:
+      size: 5Gi
+    chartmuseum:
+      size: 1Gi
+    jobservice:
+      jobLog:
+        size: 1Gi
+    database:
+      size: 2Gi
+    redis:
+      size: 1Gi
+    trivy:
+      size: 3Gi
+
+# Escáner de vulnerabilidades Trivy
+trivy:
+  enabled: true
+
+# Configuración de métricas y componentes
+notary:
+  enabled: false
+chartmuseum:
+  enabled: false
+

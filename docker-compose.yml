@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  # Base de Datos
+  database-service:
+    image: postgres:15
+    container_name: mi-basedatos-local
+    environment:
+      POSTGRES_USER: gitops_user
+      POSTGRES_PASSWORD: gitops_password
+      POSTGRES_DB: gitopsdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_local_data:/var/lib/postgresql/data
+
+  # Backend API
+  backend-service:
+    build:
+      context: ./apps/backend
+    container_name: mi-backend-local
+    environment:
+      DB_HOST: database-service
+      DB_PORT: 5432
+      DB_USER: gitops_user
+      DB_PASSWORD: gitops_password
+      DB_NAME: gitopsdb
+    ports:
+      - "3000:3000"
+    depends_on:
+      - database-service
+
+  # Frontend React
+  frontend:
+    build:
+      context: ./apps/frontend
+    container_name: mi-frontend-local
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend-service
+
+volumes:
+  postgres_local_data:
