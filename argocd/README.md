@@ -202,46 +202,35 @@ Controlador que automatiza la creación masiva y dinámica de recursos `Applicat
 
 ## 4. Componentes del Proyecto GitOps (Nuestras Aplicaciones)
 
-En este repositorio, la carpeta `argocd/` contiene las definiciones de las aplicaciones que integran nuestro flujo de microservicios:
+En este repositorio, la gestión de despliegues se realiza de forma **dinámica y automatizada**:
 
 ```
 argocd/
-├── application-database.yaml   # Base de Datos PostgreSQL
-├── application-backend.yaml    # API Backend (Node.js/Express)
-├── application-frontend.yaml   # Frontend React + Nginx
-└── application-harbor.yaml     # Registro de Contenedores Harbor
+├── applicationset.yaml     # Generador dinámico para Microservicios (Dev / Prod)
+├── application-harbor.yaml # Registro de Contenedores Harbor (Helm Multi-source)
+└── README.md               # Esta documentación
 ```
 
-### 1. `gitops-database`
-* **Archivo**: [`argocd/application-database.yaml`](file:///home/scarmona/git/gitops_proyect/argocd/application-database.yaml)
-* **Ruta de manifiestos**: `k8s/database`
-* **Namespace de destino**: `default`
-* **Componentes que despliega**:
-  - `Secret` (`db-secret`): Credenciales de PostgreSQL.
-  - `PersistentVolumeClaim` (`postgres-pvc`): Volumen persistente que resiste reinicios y eliminaciones de pods.
-  - `Service` (`database-service`): Exposición en el puerto interno `5432`.
-  - `StatefulSet` (`postgres`): Pod gestionado de base de datos con volumen montado en `/var/lib/postgresql/data`.
+### 1. `gitops-microservices` (ApplicationSet)
+* **Archivo**: [`argocd/applicationset.yaml`](file:///home/scarmona/git/gitops_proyect/argocd/applicationset.yaml)
+* **Tipo**: Generador Dinámico de Aplicaciones (`ApplicationSet`).
+* **Responsabilidad**: Genera dinámicamente dos aplicaciones independientes en ArgoCD:
+  1. **`gitops-stack-dev`**:
+     - Rastrea la rama **`dev`**.
+     - Despliega el overlay Kustomize **`k8s/environments/dev`**.
+     - Namespace de destino: **`dev`** (1 réplica, variables de desarrollo).
+  2. **`gitops-stack-prod`**:
+     - Rastrea la rama **`main`**.
+     - Despliega el overlay Kustomize **`k8s/environments/prod`**.
+     - Namespace de destino: **`prod`** (3 réplicas, límites de CPU/RAM, alta disponibilidad).
+* **Componentes que despliega en cada entorno**:
+  - **Base de Datos**: StatefulSet de PostgreSQL, PVC persistente, Service y Secret.
+  - **Backend**: Deployment de Node.js/Express, ConfigMap, Service e `imagePullSecrets`.
+  - **Frontend**: Deployment de React + Nginx y Service NodePort.
 
-### 2. `gitops-backend`
-* **Archivo**: [`argocd/application-backend.yaml`](file:///home/scarmona/git/gitops_proyect/argocd/application-backend.yaml)
-* **Ruta de manifiestos**: `k8s/backend`
-* **Namespace de destino**: `default`
-* **Componentes que despliega**:
-  - `ConfigMap` (`backend-config`): Variables de entorno con el host y puerto de la base de datos.
-  - `Deployment` (`backend`): Contenedor de Node.js/Express con `imagePullSecrets` para Harbor.
-  - `Service` (`backend-service`): Exposición interna en el puerto `3000`.
-
-### 3. `gitops-frontend`
-* **Archivo**: [`argocd/application-frontend.yaml`](file:///home/scarmona/git/gitops_proyect/argocd/application-frontend.yaml)
-* **Ruta de manifiestos**: `k8s/frontend`
-* **Namespace de destino**: `default`
-* **Componentes que despliega**:
-  - `Deployment` (`frontend`): Contenedor con la app React compilada sobre Nginx, configurada como proxy inverso hacia `backend-service`.
-  - `Service` (`frontend-service`): Servicio tipo `NodePort` en el puerto `30080` para acceso web directo.
-
-### 4. `gitops-harbor`
+### 2. `gitops-harbor`
 * **Archivo**: [`argocd/application-harbor.yaml`](file:///home/scarmona/git/gitops_proyect/argocd/application-harbor.yaml)
-* **Tipo**: Aplicación Multi-source (Helm Chart remoto + valores locales en Git).
+* **Tipo**: Aplicación Multi-source (Helm Chart oficial de Harbor + valores personalizados en Git).
 * **Namespace de destino**: `harbor`
 * **Componentes que despliega**:
   - Registro de imágenes privado Harbor (Portal, Core, Jobservice, Registry, Database, Redis, Trivy).
