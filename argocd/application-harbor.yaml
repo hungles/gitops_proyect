@@ -16,7 +16,7 @@ spec:
         valueFiles:
           - $values/k8s/harbor/values.yaml
     # Fuente 2: Repositorio Git con nuestro values.yaml personalizado
-    - repoURL: 'https://github.com/tu-usuario/gitops_proyect.git' # ACTUALIZAR CON TU REPO
+    - repoURL: 'https://github.com/hungles/gitops_proyect.git' # ACTUALIZAR CON TU REPO
       targetRevision: dev
       ref: values
   destination:
