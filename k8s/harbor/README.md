@@ -43,7 +43,25 @@ Con los valores definidos en `k8s/harbor/values.yaml`:
 > ```
 > 127.0.0.1 harbor.local
 > ```
-> (En Minikube también puedes ejecutar `minikube service harbor -n harbor` o usar un port-forward).
+> (En Minikube también puedes ejecutar `minikube service harbor -n harbor`.)
+
+### Acceso mediante port-forward
+
+Para acceder desde tu máquina sin exponer el `NodePort`, reenvía el servicio
+externo de Harbor (`harbor`). No uses el servicio interno `gitops-harbor-portal`:
+
+```bash
+kubectl port-forward svc/harbor -n harbor 30002:80
+```
+
+Mantén el comando en ejecución y abre `http://harbor.local:30002`. La entrada
+`127.0.0.1 harbor.local` en `/etc/hosts` es necesaria porque coincide con el
+valor `externalURL` configurado en `values.yaml`.
+
+> [!NOTE]
+> `harborAdminPassword` define la contraseña inicial de `admin`. Si el usuario
+> cambia la contraseña en la interfaz, el valor del archivo no se actualiza y
+> no puede utilizarse para consultar la contraseña actual.
 
 ---
 
@@ -85,4 +103,3 @@ kubectl create secret docker-registry harbor-registry-secret \
   --docker-password='HarborAdmin123!' \
   --namespace=default
 ```
-
