@@ -24,10 +24,8 @@ Este documento proporciona una guía paso a paso para instalar **ArgoCD** en tu 
    - [AppProject](#appproject)
    - [ApplicationSet](#applicationset)
 4. [Componentes del Proyecto GitOps (Nuestras Aplicaciones)](#4-componentes-del-proyecto-gitops-nuestras-aplicaciones)
-   - [gitops-database](#1-gitops-database)
-   - [gitops-backend](#2-gitops-backend)
-   - [gitops-frontend](#3-gitops-frontend)
-   - [gitops-harbor](#4-gitops-harbor)
+   - [gitops-microservices](#1-gitops-microservices-applicationset)
+   - [gitops-harbor](#2-gitops-harbor)
 5. [Comandos Frecuentes y Troubleshooting](#5-comandos-frecuentes-y-troubleshooting)
 
 ---
@@ -47,7 +45,7 @@ kubectl create namespace argocd
 ### Paso 2: Aplicar los Manifiestos Oficiales
 Aplica la versión estable oficial más reciente de ArgoCD:
 ```bash
-kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+kubectl apply -n argocd --server-side --force-conflicts -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 ```
 
 > [!NOTE]
@@ -212,7 +210,7 @@ argocd/
 ```
 
 ### 1. `gitops-microservices` (ApplicationSet)
-* **Archivo**: [`argocd/applicationset.yaml`](file:///home/scarmona/git/gitops_proyect/argocd/applicationset.yaml)
+* **Archivo**: [`applicationset.yaml`](applicationset.yaml)
 * **Tipo**: Generador Dinámico de Aplicaciones (`ApplicationSet`).
 * **Responsabilidad**: Genera dinámicamente dos aplicaciones independientes en ArgoCD:
   1. **`gitops-stack-dev`**:
@@ -229,7 +227,7 @@ argocd/
   - **Frontend**: Deployment de React + Nginx y Service NodePort.
 
 ### 2. `gitops-harbor`
-* **Archivo**: [`argocd/application-harbor.yaml`](file:///home/scarmona/git/gitops_proyect/argocd/application-harbor.yaml)
+* **Archivo**: [`application-harbor.yaml`](application-harbor.yaml)
 * **Tipo**: Aplicación Multi-source (Helm Chart oficial de Harbor + valores personalizados en Git).
 * **Namespace de destino**: `harbor`
 * **Componentes que despliega**:
@@ -253,16 +251,15 @@ argocd app list
 
 ### Forzar la sincronización manual de una aplicación
 ```bash
-argocd app sync gitops-backend
+argocd app sync gitops-stack-dev
 ```
 
 ### Ver el árbol de recursos y salud de una aplicación
 ```bash
-argocd app get gitops-database
+argocd app get gitops-stack-dev
 ```
 
 ### Solución a problemas comunes:
 * **Estado `OutOfSync` persistente**: Revisa si algún recurso en Kubernetes tiene campos mutados por un controlador de admisión (admission webhook) o si faltan permisos de RBAC.
 * **Error de conexión con Git**: Verifica que la URL del repositorio en `repoURL` sea accesible y pública, o agrega las credenciales SSH/Token en ArgoCD bajo **Settings > Repositories**.
 * **Auto-sync no detecta cambios inmediatos**: ArgoCD sondea Git cada 3 minutos por defecto. Puedes hacer clic en **Refresh** en la UI, ejecutar `argocd app get <nombre> --refresh`, o configurar un Webhook en tu repositorio de GitHub apuntando a `/api/webhook` de ArgoCD.
-

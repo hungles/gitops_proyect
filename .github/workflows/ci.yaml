@@ -12,7 +12,11 @@ env:
 
 jobs:
   build-and-push-frontend:
-    runs-on: ubuntu-latest
+    # Se ejecuta en el runner local, que tiene acceso a Harbor y Docker.
+    runs-on: [self-hosted, linux, x64]
+    env:
+      HARBOR_USERNAME: ${{ secrets.HARBOR_USERNAME }}
+      HARBOR_PASSWORD: ${{ secrets.HARBOR_PASSWORD }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -30,11 +34,11 @@ jobs:
 
       - name: Log in to Harbor Registry
         uses: docker/login-action@v2
-        if: ${{ secrets.HARBOR_USERNAME != '' }}
+        if: ${{ env.HARBOR_USERNAME != '' }}
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.HARBOR_USERNAME }}
-          password: ${{ secrets.HARBOR_PASSWORD }}
+          username: ${{ env.HARBOR_USERNAME }}
+          password: ${{ env.HARBOR_PASSWORD }}
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta
@@ -51,12 +55,16 @@ jobs:
         with:
           context: ./apps/frontend
           # Si se configuraron secretos de Harbor y no es un PR, hace push al registro
-          push: ${{ github.event_name != 'pull_request' && secrets.HARBOR_USERNAME != '' }}
+          push: ${{ github.event_name != 'pull_request' && env.HARBOR_USERNAME != '' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
   build-and-push-backend:
-    runs-on: ubuntu-latest
+    # Se ejecuta en el runner local, que tiene acceso a Harbor y Docker.
+    runs-on: [self-hosted, linux, x64]
+    env:
+      HARBOR_USERNAME: ${{ secrets.HARBOR_USERNAME }}
+      HARBOR_PASSWORD: ${{ secrets.HARBOR_PASSWORD }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -74,11 +82,11 @@ jobs:
 
       - name: Log in to Harbor Registry
         uses: docker/login-action@v2
-        if: ${{ secrets.HARBOR_USERNAME != '' }}
+        if: ${{ env.HARBOR_USERNAME != '' }}
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.HARBOR_USERNAME }}
-          password: ${{ secrets.HARBOR_PASSWORD }}
+          username: ${{ env.HARBOR_USERNAME }}
+          password: ${{ env.HARBOR_PASSWORD }}
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta
@@ -95,6 +103,6 @@ jobs:
         with:
           context: ./apps/backend
           # Si se configuraron secretos de Harbor y no es un PR, hace push al registro
-          push: ${{ github.event_name != 'pull_request' && secrets.HARBOR_USERNAME != '' }}
+          push: ${{ github.event_name != 'pull_request' && env.HARBOR_USERNAME != '' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
