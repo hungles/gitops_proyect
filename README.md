@@ -1,116 +1,243 @@
-# GitOps local con Argo CD, Harbor y GitHub Actions
+# GitOps Local con Argo CD, Harbor y Microservicios
 
-Proyecto demostrativo para practicar un flujo GitOps completo en un clúster local:
+Proyecto demostrativo para implementar y practicar un flujo GitOps completo en un clúster local de Kubernetes:
 
 ```text
-Git push → GitHub Actions (self-hosted runner) → Harbor
-                                           ↓
-Git (manifiestos Kustomize) → Argo CD → Kubernetes
+Código / Push → Docker Build & Push → Harbor (Registry Local :30002)
+                                              ↓
+Git (Kustomize: dev / prod) → Argo CD (ApplicationSet) → Kubernetes
 ```
 
-Incluye una aplicación React, una API Node.js, PostgreSQL, Harbor como registro
-privado y Argo CD como reconciliador GitOps. Está pensado para aprendizaje y
-portafolio; no es una configuración de producción.
+Incluye una aplicación Frontend en **React**, una API Backend en **Node.js**, persistencia con **PostgreSQL**, **Harbor** como registro privado de contenedores y **Argo CD** como orquestador GitOps dinámico multi-entorno.
 
-## Arquitectura
+---
 
-| Componente | Responsabilidad |
-| --- | --- |
-| `apps/frontend` | Aplicación React servida con Nginx. |
-| `apps/backend` | API Node.js conectada a PostgreSQL. |
-| `k8s/base` | Manifiestos comunes de base de datos, backend y frontend. |
-| `k8s/environments` | Overlays Kustomize para `dev` y `prod`. |
-| Harbor | Almacena `gitops/frontend` y `gitops/backend`. |
-| Argo CD | Sincroniza Git con el clúster y corrige drift. |
-| GitHub Actions | Construye y publica imágenes desde un self-hosted runner local. |
+## Arquitectura del Repositorio
 
-El `ApplicationSet` genera dos aplicaciones: `gitops-stack-dev` desde la rama
-`dev` y `gitops-stack-prod` desde `main`. Harbor obtiene su chart oficial desde
-Helm y sus valores desde la rama `harbor`.
+| Componente / Ruta | Descripción |
+| :--- | :--- |
+| **`apps/frontend`** | Código React (Vite) empaquetado en Nginx (proxy inverso a la API). |
+| **`apps/backend`** | API REST en Node.js (Express) con conexión a PostgreSQL. |
+| **`k8s/base`** | Manifiestos base comunes de Frontend, Backend y Database. |
+| **`k8s/environments/dev`** | Overlay de Kustomize para Desarrollo (1 réplica, configs dev, tags `:dev`). |
+| **`k8s/environments/prod`** | Overlay de Kustomize para Producción (3 réplicas, límites de CPU/RAM, tags `:prod`). |
+| **`k8s/harbor`** | Configuración personalizada (`values.yaml`) para el chart oficial de Harbor. |
+| **`argocd/applicationset.yaml`** | Generador dinámico que crea aplicaciones en Argo CD según entorno (`dev` o `prod`). |
+| **`argocd/application-harbor.yaml`**| Aplicación de Argo CD que despliega Harbor desde su Helm Chart y la rama `harbor`. |
+| **`.github/workflows/ci.yaml`** | Pipeline de CI para construir y publicar imágenes automáticamente. |
 
-## Inicio rápido
+---
 
-### Prerrequisitos
+## Guía Paso a Paso para Desplegar el Proyecto
 
-- Un clúster Kubernetes local activo y seleccionado en `kubectl`.
-- Docker instalado; debe permitir HTTP para `harbor.local:30002` como insecure
-  registry.
-- `kubectl`, `docker` y `curl` disponibles en el `PATH`.
-- La entrada `127.0.0.1 harbor.local` en `/etc/hosts`.
+Sigue estos pasos manuales para poner en marcha todo el entorno en tu máquina y clúster local.
 
-El script solicita la contraseña de Harbor de forma interactiva. También se
-puede proporcionar por variable de entorno:
+---
+
+### Paso 1: Configuración del Host Local (Docker y DNS)
+
+Dado que Harbor se ejecuta en local sobre HTTP (puerto `30002`) sin certificados SSL firmados, debes configurar la resolución de nombres y permitir que Docker se comunique con registros no seguros.
+
+1. **Agregar entrada DNS en `/etc/hosts`**:
+   ```bash
+   echo "127.0.0.1 harbor.local" | sudo tee -a /etc/hosts
+   ```
+   *(Si utilizas Minikube con driver VM, reemplaza `127.0.0.1` por la IP arrojada por `minikube ip`)*.
+
+2. **Habilitar Insecure Registry en Docker**:
+   Edita o crea el archivo `/etc/docker/daemon.json` en tu sistema:
+   ```json
+   {
+     "insecure-registries": ["harbor.local:30002", "localhost:30002", "127.0.0.1:30002"]
+   }
+   ```
+
+3. **Reiniciar el servicio de Docker**:
+   ```bash
+   sudo systemctl restart docker
+   ```
+
+---
+
+### Paso 2: Instalación de Argo CD en el Clúster
+
+1. **Crear el namespace de Argo CD**:
+   ```bash
+   kubectl create namespace argocd
+   ```
+
+2. **Instalar Argo CD**:
+   ```bash
+   kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+   ```
+
+3. **Instalar los CRDs con Server-Side Apply**:
+   > [!IMPORTANT]
+   > El CRD de `ApplicationSet` supera el límite de anotaciones de Kubernetes (256 KB). Por ello, es necesario aplicar los CRDs utilizando `--server-side`:
+   ```bash
+   kubectl apply --server-side -k https://github.com/argoproj/argo-cd/manifests/crds?ref=stable
+   ```
+
+4. **Obtener la contraseña inicial del usuario `admin`**:
+   ```bash
+   kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d; echo
+   ```
+
+---
+
+### Paso 3: Despliegue de Harbor mediante Argo CD
+
+Harbor está desacoplado del ciclo de las aplicaciones y rastrea su propia rama (`harbor`) en el repositorio.
+
+1. **Asegurar la existencia de la rama `harbor` en Git**:
+   ```bash
+   git checkout -b harbor
+   git push origin harbor
+   git checkout dev
+   ```
+
+2. **Aplicar el manifiesto de Harbor en Argo CD**:
+   ```bash
+   kubectl apply -f argocd/application-harbor.yaml
+   ```
+
+3. **Verificar que los pods de Harbor estén listos**:
+   ```bash
+   kubectl get pods -n harbor -w
+   ```
+   *(Este proceso puede tardar un par de minutos mientras se descargan e inicializan Registry, Database, Redis, Core y Portal)*.
+
+---
+
+### Paso 4: Acceso Local mediante Port-Forwarding (Recomendado)
+
+El método más robusto y universal para acceder tanto a Harbor como a Argo CD en entornos locales es mediante `kubectl port-forward`:
 
 ```bash
-export HARBOR_PASSWORD='cambia-esta-contraseña'
-./scripts/bootstrap-local.sh
-```
-
-El bootstrap instala Argo CD si es necesario, crea Harbor, crea el proyecto
-`gitops`, publica las dos aplicaciones con las etiquetas `dev` y `prod`, crea
-los `imagePullSecrets` de ambos entornos y aplica el `ApplicationSet`.
-
-Para reutilizar una instalación existente de Argo CD:
-
-```bash
-INSTALL_ARGOCD=false ./scripts/bootstrap-local.sh
-```
-
-Para publicar etiquetas diferentes:
-
-```bash
-IMAGE_TAGS=dev ./scripts/bootstrap-local.sh
-```
-
-> Si se publica solo `dev`, el entorno `prod` no tendrá una imagen `prod` para
-> descargar. El valor predeterminado publica ambos tags para que la demo quede
-> operativa de extremo a extremo.
-
-## Accesos locales
-
-```bash
-# Argo CD
-kubectl port-forward svc/argocd-server -n argocd 8080:443
-
-# Harbor (usar el servicio público, no gitops-harbor-portal)
+# Terminal 1: Port-forward para Harbor (expone en el puerto 30002)
 kubectl port-forward svc/harbor -n harbor 30002:80
+
+# Terminal 2: Port-forward para Argo CD (expone en el puerto 8080)
+kubectl port-forward svc/argocd-server -n argocd 8080:443
 ```
 
-- Argo CD: <https://localhost:8080>
-- Harbor: <http://harbor.local:30002>
+#### Enlaces de Acceso y Credenciales:
+* **Harbor**: [http://harbor.local:30002](http://harbor.local:30002)
+  * **Usuario**: `admin`
+  * **Contraseña**: `HarborAdmin123!` *(definida en `k8s/harbor/values.yaml`)*
+* **Argo CD**: [https://localhost:8080](https://localhost:8080)
+  * **Usuario**: `admin`
+  * **Contraseña**: La obtenida en el Paso 2.
 
-Consulta [argocd/README.md](argocd/README.md) y
-[k8s/harbor/README.md](k8s/harbor/README.md) para las credenciales iniciales y
-comandos de diagnóstico.
+---
 
-## CI/CD con runner local
+### Paso 5: Configurar el Proyecto en Harbor y Subir Imágenes Locales
 
-El workflow [`.github/workflows/ci.yaml`](.github/workflows/ci.yaml) utiliza un
-runner con las etiquetas `self-hosted`, `linux` y `x64`. Esto es imprescindible:
-los runners alojados por GitHub no pueden acceder a tu registro Harbor local.
+1. Ingresa a la interfaz de Harbor ([http://harbor.local:30002](http://harbor.local:30002)).
+2. Crea un nuevo proyecto llamado **`gitops`** (puedes marcarlo como público o privado).
+3. **Inicia sesión en Harbor desde tu terminal**:
+   ```bash
+   docker login harbor.local:30002 -u admin -p 'HarborAdmin123!'
+   ```
+4. **Construir y subir las imágenes para el entorno `dev`**:
+   ```bash
+   # Backend
+   docker build -t harbor.local:30002/gitops/backend:dev ./apps/backend
+   docker push harbor.local:30002/gitops/backend:dev
 
-Configura estos secretos en GitHub:
+   # Frontend
+   docker build -t harbor.local:30002/gitops/frontend:dev ./apps/frontend
+   docker push harbor.local:30002/gitops/frontend:dev
+   ```
+   *(Opcional: Si deseas probar el entorno de producción, puedes etiquetar y subir también como `:prod`)*.
 
-- `HARBOR_USERNAME`
-- `HARBOR_PASSWORD`
-- `HARBOR_URL` (`harbor.local:30002`)
-- `HARBOR_PROJECT` (`gitops`)
+---
 
-Los pushes a `dev` publican imágenes `:dev`; los pushes a `main` publican
-`:prod`, una etiqueta por SHA y `:latest`.
+### Paso 6: Configuración del Runtime de Kubernetes (containerd)
 
-## Flujo GitOps que demuestra el proyecto
+Si tu clúster es **Kind**, **Minikube** o **k3s**, el runtime interno del nodo (`containerd`) intentará descargar las imágenes por HTTPS por defecto. Si los pods arrojan el error `server gave HTTP response to HTTPS client`:
 
-1. Un cambio en código activa GitHub Actions en el runner local.
-2. El runner construye y publica las imágenes en Harbor.
-3. Un cambio de manifiestos en `dev` o `main` es detectado por Argo CD.
-4. Argo CD renderiza Kustomize y aplica el estado deseado en `dev` o `prod`.
-5. Si alguien modifica recursos manualmente, `selfHeal` restaura lo declarado
-   en Git; `prune` elimina recursos retirados del repositorio.
+* **En Kind**:
+  ```bash
+  docker exec -it kind-control-plane bash
+  mkdir -p /etc/containerd/certs.d/harbor.local:30002
+  cat > /etc/containerd/certs.d/harbor.local:30002/hosts.toml <<EOF
+  server = "http://harbor.local:30002"
+  [host."http://harbor.local:30002"]
+    capabilities = ["pull", "resolve", "push"]
+    skip_verify = true
+  EOF
+  systemctl restart containerd
+  exit
+  ```
+* **En Minikube**:
+  ```bash
+  minikube ssh
+  sudo mkdir -p /etc/containerd/certs.d/harbor.local:30002
+  sudo tee /etc/containerd/certs.d/harbor.local:30002/hosts.toml <<EOF
+  server = "http://harbor.local:30002"
+  [host."http://harbor.local:30002"]
+    capabilities = ["pull", "resolve", "push"]
+    skip_verify = true
+  EOF
+  sudo systemctl restart containerd
+  exit
+  ```
 
-## Notas de seguridad
+---
 
-Las contraseñas de ejemplo de este repositorio son únicamente para una demo
-local. Antes de usarlo fuera de ese contexto, reemplázalas por secretos
-gestionados (por ejemplo, External Secrets, Sealed Secrets o SOPS), usa TLS en
-Harbor y limita qué workflows pueden ejecutarse en el self-hosted runner.
+### Paso 7: Crear el Secreto de Autenticación (`imagePullSecrets`)
+
+Para que Kubernetes descargue las imágenes desde Harbor en el namespace `dev`:
+
+```bash
+# Crear namespace dev si no existe
+kubectl create namespace dev --dry-run=client -o yaml | kubectl apply -f -
+
+# Crear el Secret para descargar imágenes
+kubectl create secret docker-registry harbor-registry-secret \
+  --docker-server=harbor.local:30002 \
+  --docker-username=admin \
+  --docker-password='HarborAdmin123!' \
+  --namespace=dev
+```
+*(Para el entorno `prod`, repite el comando cambiando `--namespace=prod`)*.
+
+---
+
+### Paso 8: Desplegar Microservicios con el ApplicationSet
+
+El archivo [`argocd/applicationset.yaml`](argocd/applicationset.yaml) generará dinámicamente dos aplicaciones:
+* `gitops-stack-dev`: escucha la rama `dev` y despliega `k8s/environments/dev` en el namespace `dev`.
+* `gitops-stack-prod`: escucha la rama `main` y despliega `k8s/environments/prod` en el namespace `prod`.
+
+Asegúrate de haber subido los cambios a tu rama `dev`:
+```bash
+git add .
+git commit -m "feat: setup dynamic multi-environment gitops"
+git push origin dev
+```
+
+Y aplica el generador:
+```bash
+kubectl apply -f argocd/applicationset.yaml
+```
+
+Verifica en la UI de Argo CD ([https://localhost:8080](https://localhost:8080)) o por CLI:
+```bash
+kubectl get applications -n argocd
+kubectl get pods -n dev -w
+```
+
+---
+
+## Flujo de Trabajo y CI/CD
+
+Cuando decidas automatizar la compilación mediante GitHub Actions:
+1. Configura un **self-hosted runner** (ya que los runners públicos de GitHub no pueden acceder a tu `harbor.local:30002` privado).
+2. Configura los siguientes secretos en tu repositorio de GitHub:
+   * `HARBOR_URL`: `harbor.local:30002`
+   * `HARBOR_USERNAME`: `admin`
+   * `HARBOR_PASSWORD`: `HarborAdmin123!`
+   * `HARBOR_PROJECT`: `gitops`
+3. Cada push a `dev` compilará y subirá la imagen con el tag `:dev`, y cada push a `main` publicará con `:prod` y `:latest`. Argo CD detectará los cambios y actualizará el clúster automáticamente.

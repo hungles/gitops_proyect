@@ -45,7 +45,7 @@ kubectl create namespace argocd
 ### Paso 2: Aplicar los Manifiestos Oficiales
 Aplica la versión estable oficial más reciente de ArgoCD:
 ```bash
-kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+kubectl apply -n argocd --server-side --force-conflicts -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 ```
 
 > [!NOTE]

@@ -87,6 +87,12 @@ Y reinicia Docker:
 sudo systemctl restart docker
 ```
 
+> [!IMPORTANT]
+> Esta configuración solo afecta al Docker del host. Si Kubernetes usa
+> `containerd` (por ejemplo, Kind), el runtime del nodo también debe tener un
+> `certs.d` configurado para `harbor.local:30002`. El script
+> `scripts/bootstrap-local.sh` lo configura automáticamente para nodos Kind.
+
 ---
 
 ## 6. Autenticación de Kubernetes (`imagePullSecrets`)
