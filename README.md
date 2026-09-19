@@ -25,12 +25,19 @@ Incluye una aplicación Frontend en **React**, una API Backend en **Node.js**, p
 | **`argocd/applicationset.yaml`** | Generador dinámico que crea aplicaciones en Argo CD según entorno (`dev` o `prod`). |
 | **`argocd/application-harbor.yaml`**| Aplicación de Argo CD que despliega Harbor desde su Helm Chart y la rama `harbor`. |
 | **`.github/workflows/ci.yaml`** | Pipeline de CI para construir y publicar imágenes automáticamente. |
+| **`docs/github-runner-setup.md`** | Guía paso a paso para registrar y ejecutar el GitHub Actions Self-Hosted Runner local. |
 
 ---
 
 ## Guía Paso a Paso para Desplegar el Proyecto
 
-Sigue estos pasos manuales para poner en marcha todo el entorno en tu máquina y clúster local.
+> [!TIP]
+> **Despliegue automatizado**: Puedes ejecutar directamente el script de automatización que ejecuta en orden los 8 pasos descritos a continuación:
+> ```bash
+> ./scripts/bootstrap-local.sh
+> ```
+
+Sigue estos pasos manuales si prefieres entender y realizar la configuración paso a paso en tu máquina y clúster local:
 
 ---
 
@@ -68,14 +75,14 @@ Dado que Harbor se ejecuta en local sobre HTTP (puerto `30002`) sin certificados
 
 2. **Instalar Argo CD**:
    ```bash
-   kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+   kubectl apply -n argocd --server-side --force-conflicts -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
    ```
 
 3. **Instalar los CRDs con Server-Side Apply**:
    > [!IMPORTANT]
-   > El CRD de `ApplicationSet` supera el límite de anotaciones de Kubernetes (256 KB). Por ello, es necesario aplicar los CRDs utilizando `--server-side`:
+   > El CRD de `ApplicationSet` supera el límite de anotaciones de Kubernetes (256 KB). Por ello, es necesario aplicar los CRDs y manifiestos utilizando `--server-side`:
    ```bash
-   kubectl apply --server-side -k https://github.com/argoproj/argo-cd/manifests/crds?ref=stable
+   kubectl apply --server-side --force-conflicts -k https://github.com/argoproj/argo-cd/manifests/crds?ref=stable
    ```
 
 4. **Obtener la contraseña inicial del usuario `admin`**:
@@ -234,8 +241,12 @@ kubectl get pods -n dev -w
 ## Flujo de Trabajo y CI/CD
 
 Cuando decidas automatizar la compilación mediante GitHub Actions:
-1. Configura un **self-hosted runner** (ya que los runners públicos de GitHub no pueden acceder a tu `harbor.local:30002` privado).
-2. Configura los siguientes secretos en tu repositorio de GitHub:
+
+> [!TIP]
+> **Guía detallada de instalación**: Consulta la [Guía de Configuración de GitHub Actions Runner](docs/github-runner-setup.md) para el paso a paso detallado sobre cómo descargar, registrar y correr el runner como servicio permanente (`systemd`).
+
+1. Configura un **self-hosted runner** en tu máquina (los runners públicos de GitHub no pueden acceder a tu `harbor.local:30002` local). Sigue los pasos de [docs/github-runner-setup.md](docs/github-runner-setup.md).
+2. Configura los siguientes secretos en tu repositorio de GitHub (**Settings > Secrets and variables > Actions**):
    * `HARBOR_URL`: `harbor.local:30002`
    * `HARBOR_USERNAME`: `admin`
    * `HARBOR_PASSWORD`: `HarborAdmin123!`
