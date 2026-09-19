@@ -245,10 +245,14 @@ Cuando decidas automatizar la compilación mediante GitHub Actions:
 > [!TIP]
 > **Guía detallada de instalación**: Consulta la [Guía de Configuración de GitHub Actions Runner](docs/github-runner-setup.md) para el paso a paso detallado sobre cómo descargar, registrar y correr el runner como servicio permanente (`systemd`).
 
+> [!IMPORTANT]
+> **Secretos requeridos en tu nuevo repositorio de GitHub**:  
+> Si clonas, haces un Fork o subes este proyecto a tu propia cuenta o a un **nuevo repositorio de GitHub**, los secretos no se copian automáticamente. Debes crearlos manualmente en tu repositorio (**Settings > Secrets and variables > Actions > New repository secret**):
+> * `HARBOR_URL`: `harbor.local:30002`
+> * `HARBOR_USERNAME`: `admin`
+> * `HARBOR_PASSWORD`: `HarborAdmin123!`
+> * `HARBOR_PROJECT`: `gitops`
+
 1. Configura un **self-hosted runner** en tu máquina (los runners públicos de GitHub no pueden acceder a tu `harbor.local:30002` local). Sigue los pasos de [docs/github-runner-setup.md](docs/github-runner-setup.md).
-2. Configura los siguientes secretos en tu repositorio de GitHub (**Settings > Secrets and variables > Actions**):
-   * `HARBOR_URL`: `harbor.local:30002`
-   * `HARBOR_USERNAME`: `admin`
-   * `HARBOR_PASSWORD`: `HarborAdmin123!`
-   * `HARBOR_PROJECT`: `gitops`
+2. Asegúrate de haber agregado los 4 secretos (`HARBOR_URL`, `HARBOR_USERNAME`, `HARBOR_PASSWORD`, `HARBOR_PROJECT`) en tu nuevo repositorio.
 3. Cada push a `dev` compilará y subirá la imagen con el tag `:dev`, y cada push a `main` publicará con `:prod` y `:latest`. Argo CD detectará los cambios y actualizará el clúster automáticamente.

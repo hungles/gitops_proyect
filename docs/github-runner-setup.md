@@ -153,15 +153,21 @@ journalctl -u actions.runner.* -f
 
 El workflow [`.github/workflows/ci.yaml`](file:///home/scarmona/git/gitops_proyect/.github/workflows/ci.yaml) consume variables de entorno protegidas para iniciar sesión en Harbor y etiquetar las imágenes.
 
-1. En GitHub, ve a **Settings** > **Secrets and variables** > **Actions**.
-2. Haz clic en **New repository secret** y crea los siguientes 4 secretos:
+> [!IMPORTANT]
+> **Esencial para nuevos repositorios o forks**:  
+> Al crear un **nuevo repositorio** o hacer un Fork, los secretos **no se transfieren**. Debes crearlos manualmente en tu repositorio de GitHub para que el pipeline de CI pueda conectarse y autenticarse con tu registro local Harbor.
 
-| Nombre del Secreto | Valor de Ejemplo | Descripción |
+### Pasos para crearlos:
+1. En tu repositorio en GitHub, ve a **Settings** > pestaña lateral **Secrets and variables** > **Actions**.
+2. Haz clic en el botón verde **New repository secret**.
+3. Agrega uno por uno los siguientes **4 secretos**:
+
+| Nombre del Secreto | Valor a Configurar | Descripción |
 | :--- | :--- | :--- |
-| **`HARBOR_URL`** | `harbor.local:30002` | Dirección del registro local. |
+| **`HARBOR_URL`** | `harbor.local:30002` | Dirección y puerto del registro local Harbor. |
 | **`HARBOR_USERNAME`** | `admin` | Usuario con permisos de push en Harbor. |
 | **`HARBOR_PASSWORD`** | `HarborAdmin123!` | Contraseña del usuario de Harbor. |
-| **`HARBOR_PROJECT`** | `gitops` | Nombre del proyecto creado en Harbor. |
+| **`HARBOR_PROJECT`** | `gitops` | Nombre del proyecto de Harbor donde se alojan las imágenes. |
 
 ---
 
